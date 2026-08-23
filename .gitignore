@@ -1,0 +1,20 @@
+# 数据与本地环境不入库
+data/
+*.parquet
+*.csv
+!reports/*.md
+*.png
+
+# Python
+__pycache__/
+*.pyc
+.venv*/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# 报告 csv（数字从本地回测生成，可再生成）
+reports/*.csv
+reports/*.png
