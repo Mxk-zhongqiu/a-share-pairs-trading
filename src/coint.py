@@ -26,6 +26,7 @@ ALIGNED = os.path.join(PROJ2, "data", "aligned")
 PAIRS = os.path.join(PROJ2, "data", "pairs")
 
 IS_END = "2021-12-31"
+CONFIRM_END = "2023-12-31"    # 确认窗口终点（预注册：确认只用 2022-2023，交易期 2024-2026 纯样本外）
 HL_MIN, HL_MAX = 1.0, 90.0        # IS 半衰期可行区间
 OOS_HL_MAX = 120.0                # OOS 放宽（β 漂移容忍）
 
@@ -55,7 +56,7 @@ def half_life(resid: np.ndarray) -> float:
     return -np.log(2.0) / np.log(abs(rho))
 
 
-def process_pair(fn: str) -> dict | None:
+def process_pair(fn: str, confirm_end: str) -> dict | None:
     m = pd.read_parquet(os.path.join(ALIGNED, fn))
     m = m[m["date"] <= "2026-08-21"]
     m = m.dropna(subset=["close_a", "close_b"])
@@ -63,28 +64,30 @@ def process_pair(fn: str) -> dict | None:
         return None
     la = np.log(m["close_a"].to_numpy(dtype=float))
     lb = np.log(m["close_b"].to_numpy(dtype=float))
-    is_mask = m["date"].to_numpy() <= np.datetime64(IS_END)
+    dts = m["date"].to_numpy()
+    is_mask = dts <= np.datetime64(IS_END)
+    conf_mask = (dts > np.datetime64(IS_END)) & (dts <= np.datetime64(confirm_end))
 
     la_is, lb_is = la[is_mask], lb[is_mask]
-    la_oos, lb_oos = la[~is_mask], lb[~is_mask]
-    if len(la_is) < 500 or len(la_oos) < 300:
+    la_oo, lb_oo = la[conf_mask], lb[conf_mask]
+    if len(la_is) < 500 or len(la_oo) < 200:
         return None
 
     # IS 筛选
     min_p, beta1, alpha1, hl_is = eg_min_p(la_is, lb_is)
 
-    # OOS v1: 静态 IS β
-    s_oos_static = la_oos - (beta1 * lb_oos + alpha1)
+    # 确认窗 v1: 静态 IS β
+    s_oos_static = la_oo - (beta1 * lb_oo + alpha1)
     p_oos_v1 = adfuller(s_oos_static, autolag="AIC")[1]
 
-    # OOS v2: 重估 β（与卡尔曼时变机制一致）
-    b_oos, a_oos, resid_oos = eg_fit(la_oos, lb_oos)
+    # 确认窗 v2: 重估 β（与卡尔曼时变机制一致）
+    b_oos, a_oos, resid_oos = eg_fit(la_oo, lb_oo)
     p_oos_v2 = adfuller(resid_oos, autolag="AIC")[1]
     hl_oos = half_life(resid_oos)
     beta_drift = abs(b_oos - beta1) / max(abs(beta1), 1e-9)
 
     return {
-        "pair": fn[:-8], "n_is": len(la_is), "n_oos": len(la_oos),
+        "pair": fn[:-8], "n_is": len(la_is), "n_oos": len(la_oo),
         "min_p_is": min_p, "beta_is": beta1, "alpha_is": alpha1,
         "hl_is": hl_is,
         "p_oos_static": p_oos_v1, "p_oos_rees": p_oos_v2,
@@ -97,18 +100,20 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--max-pairs", type=int, default=0)
     ap.add_argument("--fdr-q", type=float, default=0.05)
+    ap.add_argument("--confirm-end", default=CONFIRM_END,
+                    help="确认窗口终点（默认 2023-12-31；预注册：交易期 2024+ 不参与选择）")
     args = ap.parse_args()
 
     files = sorted(f for f in os.listdir(ALIGNED) if f.endswith(".parquet"))
     if args.max_pairs:
         files = files[:args.max_pairs]
-    print(f"[pairs] 待检验 {len(files)} 对")
+    print(f"[pairs] 待检验 {len(files)} 对 | 确认窗口 {IS_END} ~ {args.confirm_end}")
 
     t0 = time.time()
     results = []
     for i, fn in enumerate(files, 1):
         try:
-            r = process_pair(fn)
+            r = process_pair(fn, args.confirm_end)
             if r is not None:
                 results.append(r)
         except Exception as e:
