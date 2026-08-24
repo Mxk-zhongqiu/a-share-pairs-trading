@@ -3,6 +3,7 @@
 > 目标：协整 + OU/卡尔曼时变估计 → 价差 z-score 信号 → 回测（复用项目一引擎）→ 报告 + 简历。
 > 硬截止：**2026-09-28**。总原则：**能复用的绝不复写**（SOP §11）。
 > 交接文档：`docs/PROJECT2_HANDOVER.md`（本项目起点）；SOP：`docs/QUANT_PIPELINE_SOP.md`。
+> **GitHub: https://github.com/Mxk-zhongqiu/a-share-pairs-trading**
 
 ---
 
