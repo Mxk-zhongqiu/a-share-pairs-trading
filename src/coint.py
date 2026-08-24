@@ -97,12 +97,16 @@ def process_pair(fn: str, confirm_end: str) -> dict | None:
 
 
 def main() -> None:
+    global ALIGNED
     ap = argparse.ArgumentParser()
     ap.add_argument("--max-pairs", type=int, default=0)
     ap.add_argument("--fdr-q", type=float, default=0.05)
     ap.add_argument("--confirm-end", default=CONFIRM_END,
                     help="确认窗口终点（默认 2023-12-31；预注册：交易期 2024+ 不参与选择）")
+    ap.add_argument("--aligned-dir", default=ALIGNED,
+                    help="对齐数据目录（扩展池用 data/aligned_ext）")
     args = ap.parse_args()
+    ALIGNED = args.aligned_dir
 
     files = sorted(f for f in os.listdir(ALIGNED) if f.endswith(".parquet"))
     if args.max_pairs:

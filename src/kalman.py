@@ -79,8 +79,8 @@ def select_lambda(la: np.ndarray, lb: np.ndarray, R: float,
     return best, best_mse
 
 
-def process_pair(pr: str, r: pd.Series) -> pd.DataFrame | None:
-    m = pd.read_parquet(os.path.join(ALIGNED, f"{pr}.parquet"))
+def process_pair(pr: str, r: pd.Series, aligned_dir: str) -> pd.DataFrame | None:
+    m = pd.read_parquet(os.path.join(aligned_dir, f"{pr}.parquet"))
     m = m.dropna(subset=["close_a", "close_b"])
     la = np.log(m["close_a"].to_numpy(float))
     lb = np.log(m["close_b"].to_numpy(float))
@@ -109,14 +109,13 @@ def process_pair(pr: str, r: pd.Series) -> pd.DataFrame | None:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--max-pairs", type=int, default=0)
-    args = ap.parse_args()
-
+    import sys as _s
+    ap = None
+    aligned_dir = _s.argv[1] if len(_s.argv) > 1 else ALIGNED
     sel = pd.read_csv(os.path.join(PAIRS, "coint_selected.csv"), encoding="utf-8-sig")
-    if args.max_pairs:
-        sel = sel.head(args.max_pairs)
-    print(f"[pairs] 稳定协整对 {len(sel)}")
+    if "--max" in _s.argv:
+        sel = sel.head(int(_s.argv[_s.argv.index("--max") + 1]))
+    print(f"[pairs] 稳定协整对 {len(sel)} | aligned={aligned_dir}")
 
     os.makedirs(SIGNALS, exist_ok=True)
     t0 = time.time()
@@ -124,7 +123,7 @@ def main() -> None:
     for i, (_, r) in enumerate(sel.iterrows(), 1):
         pr = r["pair"]
         try:
-            df, summ = process_pair(pr, r)
+            df, summ = process_pair(pr, r, aligned_dir)
             df.to_parquet(os.path.join(SIGNALS, f"kalman_{pr}.parquet"), index=False)
             summaries.append(summ)
         except Exception as e:

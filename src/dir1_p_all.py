@@ -24,11 +24,13 @@ def half_life(resid: np.ndarray) -> float:
 
 
 def main() -> None:
-    files = sorted(f for f in os.listdir(ALIGNED) if f.endswith(".parquet"))
+    import sys as _s
+    aligned = _s.argv[1] if len(_s.argv) > 1 else ALIGNED
+    files = sorted(f for f in os.listdir(aligned) if f.endswith(".parquet"))
     rows = []
     t0 = time.time()
     for i, fn in enumerate(files, 1):
-        m = pd.read_parquet(os.path.join(ALIGNED, fn))
+        m = pd.read_parquet(os.path.join(aligned, fn))
         m = m[m["date"] <= IS_END].dropna(subset=["close_a", "close_b"])
         if len(m) < 500:
             continue
